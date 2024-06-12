@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Arduino Data Plotter</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@1.0.0"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    body {
+      background-color: #121212;
+      color: #ffffff;
+      font-family: Helvetica, sans-serif;
+      font-size: large;
+      display: flex;
+      flex-direction: column;
+      align-items: left;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      padding: 0 20px;
+      box-sizing: border-box;
+    }
+    h1 {
+      margin-top: 30px;
+      margin-left: 20px;
+    }
+    .controls {
+      margin-left: 1420px;
+      margin-right: 20px;
+      margin-bottom: 10px;
+      position: absolute;
+      bottom: 0;
+    }
+    button {
+
+      background-color: #2c2c2c;
+      color: #ffffff;
+      padding: 10px 20px;
+      cursor: pointer;
+
+    }
+    button:hover {
+      background-color: #3c3c3c;
+    }
+    .chart-container {
+      position: relative;
+      height: 700px;
+      width: 100%;
+
+    }
+    #myChart {
+      background-color: #2c2c2c;
+    }
+    #resistanceValue {
+      margin-top: 20px;
+      font-size: 18px;
+    }
+  </style>
+</head>
+<body>
+  <h1>GRAP1033 BIO/M: Graphite Biofoam Pressure Sensor</h1>
+  <div class="controls">
+    <button id="pauseButton">Pause</button>
+  </div>
+  <div class="chart-container">
+    <canvas id="myChart"></canvas>
+  </div>
+  <div id="resistanceValue">Resistance: N/A</div>
+
+  <script>
+    const ctx = document.getElementById('myChart').getContext('2d');
+    const chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [{
+          label: 'Analog Reading',
+          backgroundColor: 'rgba(30, 144, 255, 0.2)',
+          borderColor: 'rgba(30, 144, 255, 1)',
+          data: []
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: {
+            type: 'linear',
+            position: 'bottom',
+            title: {
+              display: true,
+              text: 'Time (seconds)',
+              color: '#ffffff'
+            },
+            ticks: {
+              color: '#ffffff'
+            }
+          },
+          y: {
+            min: 0,
+            max: 1034,
+            title: {
+              display: true,
+              text: 'Reading Value',
+              color: '#ffffff'
+            },
+            ticks: {
+              color: '#ffffff'
+            }
+          }
+        },
+      }
+    });
+
+    let startTime = Date.now();
+    let isPaused = false;
+
+    const socket = io();
+    socket.on('data', (value) => {
+      if (!isPaused) {
+        const timeInSeconds = (Date.now() - startTime) / 1000;
+        chart.data.labels.push(timeInSeconds);
+        chart.data.datasets[0].data.push(value);
+
+        chart.update();
+
+        // Update the resistance value display
+        const resistanceValue = calculateResistance(value);
+        document.getElementById('resistanceValue').textContent = `Resistance: ${resistanceValue.toFixed(2)} ohms`;
+      }
+    });
+
+    document.getElementById('pauseButton').addEventListener('click', () => {
+      isPaused = !isPaused;
+      document.getElementById('pauseButton').textContent = isPaused ? 'Resume' : 'Pause';
+    });
+
+    function calculateResistance(adcValue) {
+      const Vcc = 5.0; // Supply voltage
+      const adcMax = 1023.0; // Maximum ADC value
+      const knownResistor = 4700000000; 
+
+      const Vout = (adcValue / adcMax) * Vcc;
+      const Rfoam = (Vcc - Vout) * knownResistor / Vout;
+      return Rfoam;
+    }
+  </script>
+</body>
+</html>
